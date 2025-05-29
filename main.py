@@ -4,8 +4,22 @@ from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 from db import crud, models, schemas
 from db.database import SessionLocal, engine
+from typing import Annotated, Union
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
+
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
+
+SECRET_KEY = "19109197bd5e7c289b92b2b355083ea26c71dee2085ceccc19308a7291b2ea06"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Визначення аутентифікації через OAuth2BearerToken
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 # Залежність
 def get_db():
     db = SessionLocal()
@@ -38,11 +52,35 @@ all_books = {
     ]
 }
 
+def token_create(data: dict):
+    expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-@app.get("/books{author}", response_model=schemas.BookDB)
-def get_books(author: str, db: Session = Depends(get_db)):
+    return encoded_jwt
+
+@app.post("/token")
+async def token_get(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db:Session = Depends(get_db)): 
+    user_db = db.query(models.User).filter(models.User.login == form_data.username, models.User.password == form_data.password).first()
+    if not user_db:
+        raise HTTPException(status_code=400, detail="Неправильний логін або пароль")
+    
+    token = token_create(data={"sub": user_db.login})
+    return {"access_token": token, "token_type": "bearer"}
+
+@app.get("/books/{author}", response_model=list[schemas.BookDB])
+def get_books(author: str, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+        ''''Отримання книг за автором'''
         books = db.query(models.Book).filter(models.Author.name == author).all()
-        return books
+        if books:
+            return books
+        elif not books:
+            raise HTTPException(status_code=404, detail="Книги не знайдено для цього автора")
     
 
     
