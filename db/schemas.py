@@ -7,7 +7,7 @@ class Author(BaseModel):
 
 
 class Book(BaseModel):
-    title: str = Field(..., min_length=3, max_length=100)
+    name: str = Field(..., min_length=3, max_length=100)
     pages: int = Field(..., gt=10)
 
 
