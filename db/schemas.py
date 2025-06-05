@@ -10,6 +10,10 @@ class Book(BaseModel):
     name: str = Field(..., min_length=3, max_length=100)
     pages: int = Field(..., gt=10)
 
+class BookCreate(Book):
+    name: str = Field(..., min_length=3, max_length=100)
+    pages: int = Field(..., gt=10)
+    author_name: str = Field(..., min_length=3, max_length=100)
 
 class BookDB(Book):
     id: int

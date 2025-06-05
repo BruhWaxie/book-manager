@@ -85,29 +85,50 @@ def get_books(author: str, db: Session = Depends(get_db), token: str = Depends(o
 
     
 @app.post("/books")
-def add_book(book: schemas.BookDB):
-    if book.author not in all_books:
-        all_books[book.author] = []
-        all_books[book.author].append({'title': book.title, 'pages': book.pages})
-        return {"message": "Книгу додано успішно"}
+def add_book(book: schemas.BookCreate,
+                db:Session = Depends(get_db),
+                token: str = Depends(oauth2_scheme)):
+    
+    '''Додавання книги'''
+    author_db = db.query(models.Author).filter(models.Author.name == book.author_name).first()
+    if not author_db:
+        author_db = models.Author(name=book.author_name)
+        db.add(author_db)
+        db.commit()
+        db.refresh(author_db)
+    book_db = models.Book(name=book.name, pages=book.pages, author_id=author_db.id)
+    db.add(book_db)
+    db.commit()
+    db.refresh(book_db)
+    return {"message": "Книгу додано успішно"}
 
 
 @app.delete("/books")
-def delete_book(title: str = Query(min_length=3, max_length=100), author: str = Query(min_length=3, max_length=100)):
-    if author in all_books:
-        for book in all_books[author]:
-            if book['title'] == title:
-                all_books[author].remove(book)
-                return {"message": "Книгу видалено успішно"}
+def delete_book(name: str = Query(min_length=3, max_length=100),
+                author: str = Query(min_length=3, max_length=100),
+                db:Session = Depends(get_db),
+                token: str = Depends(oauth2_scheme)
+                ):
+    book_db = db.query(models.Book).filter(models.Book.name == name, models.Author.name == author).first()
+    if book_db:
+        db.delete(book_db)
+        db.commit()
+        return {"message": "Книгу видалено успішно"}
     return {"message": "Книги не знайдено"}
 
 
 @app.put("/books")
-def update_book(title: str = Query(min_length=3, max_length=100), author: str = Query(min_length=3, max_length=100), new_title: str = Query(min_length=3, max_length=100), new_pages: int = Query(gt=10)):
+def update_book(name: str = Query(min_length=3, max_length=100), 
+                author: str = Query(min_length=3, max_length=100), 
+                new_name: str = Query(min_length=3, max_length=100), 
+                new_pages: int = Query(gt=10),
+                db:Session = Depends(get_db),
+                token: str = Depends(oauth2_scheme)):
+    book_db = db.query(models.Book).filter(models.Book.name == name, models.Author.name == author).first()
     if author in all_books:
         for book in all_books[author]:
-            if book['title'] == title:
-                book['title'] = new_title
+            if book['name'] == name:
+                book['name'] = new_name
                 book['pages'] = new_pages
                 return {"message": "Книгу оновлено успішно"}
     return {"message": "Книги не знайдено"}
